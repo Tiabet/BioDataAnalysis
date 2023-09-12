@@ -1,0 +1,17 @@
+---
+title: "Tutorial"
+author: "Tiabet"
+date: "2023-09-12"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Practice R Markdown
+
+```{r cars}
+summary(cars)
+```
+
