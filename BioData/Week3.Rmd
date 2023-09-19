@@ -42,7 +42,8 @@ telegram<-function(...){
 telegram("Message")
 ```
 
-실습
+실습 예제 1
+포아송 분포에서는 input값의 mean이 MLE과 비슷함.
 ```{r}
 load("./data/e100.RData")
 #max(e100)
@@ -68,11 +69,23 @@ plot(lambdas, loglik, type = 'l', col = "red", ylab = "", lwd = 2,
 
 m0 = mean(e100)
 
-abline(v = m0, col = "blue", lwd = 2)
-abline(h = loglikelihood(m0), col = "purple", lwd = 2)
+abline(v = m0, col = "blue", lwd = 2) #v는 수직선
+abline(h = loglikelihood(m0), col = "purple", lwd = 2) #h는 수평선
 
 #간단히 할 수 있는 goodfit 함수
 gf  =  goodfit(e100, "poisson")
-gf$par
+gf$par==m0 #둘이 동일함
 table(rpois(100, 0.55))
+```
+실습 예제 2
+```{r}
+cb  =  c(rep(0, 110), rep(1, 10))
+table(cb)
+probs  =  seq(0, 0.3, by = 0.005)
+likelihood = dbinom(sum(cb), prob = probs, size = length(cb))
+plot(probs, likelihood, pch = 16, xlab = "probability of success",
+       ylab = "likelihood", cex=0.6)
+
+which.max(likelihood)
+
 ```
