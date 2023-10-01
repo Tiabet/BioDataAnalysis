@@ -1,0 +1,51 @@
+---
+title: "Week3_Practice"
+author: "Tiabet"
+date: "2023-09-26"
+output: html_document
+---
+
+```{r}
+head(DNase)
+tail(DNase)
+
+plot(DNase$conc, DNase$density)
+```
+```{r}
+plot(DNase$conc, DNase$density,
+  ylab = attr(DNase, "labels")$y,
+  xlab = paste(attr(DNase, "labels")$x, attr(DNase, "units")$x),
+  pch = 3,
+  col = "blue")
+```
+```{r}
+hist(DNase$density, breaks=25, main = "density histogram")
+DNase$Run <- factor(DNase$Run, levels = seq(1,11))
+boxplot(density ~ Run, data = DNase, main = 'Density by Run')
+```
+```{r}
+library(ggplot2)
+library(dplyr)
+ggplot(DNase, aes(x = conc, y = density)) + geom_point()
+
+```
+```{r}
+dftx = data.frame(t(Biobase::exprs(x)), pData(x))
+ggplot( dftx, aes( x = X1426642_at, y = X1418765_at)) +
+  geom_point( shape = 1 ) +
+  geom_smooth( method = "loess" )
+```
+
+```{r}
+library("Hmisc")
+library(ggplot2)
+library("reshape2")
+library(Biobase)
+genes = melt(Biobase::exprs(x)[selectedProbes, ],
+             varnames = c("probe", "sample"))
+
+ggplot(genes, aes( x = gene, y = value, fill = gene)) +
+  stat_summary(fun = mean, geom = "bar") +
+  stat_summary(fun.data = mean_cl_normal, geom = "errorbar",
+               width = 0.25)
+```
