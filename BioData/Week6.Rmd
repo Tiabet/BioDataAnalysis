@@ -1,0 +1,109 @@
+---
+title: "Week6"
+author: "Tiabet"
+date: "2023-10-17"
+output: html_document
+---
+
+## 주제 : 클러스터링
+
+## 1. 거리 계산
+rbind : 벡터들을 열을 기준으로 합쳐주는 함수
+dist : 거리 계산해주는 함수
+여러가지 거리에 대한 메소드들이 있어서 이를 설정해줄 필요도 있음
+디폴트는  uclidean
+```{r}
+mx  = c(0, 0, 0, 1, 1, 1)
+my  = c(1, 0, 1, 1, 0, 1)
+mz  = c(1, 1, 1, 0, 1, 1)
+mat = rbind(mx, my, mz)
+dist(mat)
+```
+
+```{r}
+dist(mat, method = "binary")
+```
+
+```{r vegan}
+
+library(vegan)
+
+mut = read.csv("data/HIVmutations.csv")
+mut[1:3, 10:16]
+
+mutJ = vegdist(mut, "jaccard")
+mutC = sqrt(2 * (1 - cor(t(mut))))
+mutJ
+as.dist(mutC)
+```
+
+```{r}
+load("data/Morder.RData")
+dim(Morder)
+Morder[1:3, 1:4]
+D = dist(t(Morder))
+gene_clust = hclust(d = D)
+plot(gene_clust, cex = 0.25)
+D_samples <- dist(Morder)
+sample_clust <- hclust(d = D_samples)
+plot(sample_clust)
+
+abline(h=12, col='red')
+
+library("pheatmap")
+pheatmap(Morder, fontsize_col = 5, fontsize_row = 9) 
+```
+```{r}
+library("flowCore")
+library("flowViz")
+fcsB = read.FCS("data/Bendall_2011.fcs", truncate_max_range = FALSE)
+
+slotNames(fcsB)
+
+markersB = readr::read_csv("data/Bendall_2011_markers.csv")
+mt = match(markersB$isotope, colnames(fcsB))
+stopifnot(!any(is.na(mt)))
+colnames(fcsB)[mt] = markersB$marker
+
+flowPlot(fcsB, plotParameters = colnames(fcsB)[2:3], logy = TRUE)
+
+asinhtrsf = arcsinhTransform(a = 0.1, b = 1)
+fcsBT = transform(fcsB,
+  transformList(colnames(fcsB)[-c(1, 2, 41)], asinhtrsf))
+densityplot( ~`CD3all`, fcsB)
+densityplot( ~`CD3all`, fcsBT)
+```
+```{r}
+kf = kmeansFilter("CD3all" = c("Pop1","Pop2"), filterId="myKmFilter")
+fres = flowCore::filter(fcsBT, kf)
+summary(fres)
+fcsBT1 = flowCore::split(fcsBT, fres, population = "Pop1")
+fcsBT2 = flowCore::split(fcsBT, fres, population = "Pop2")
+```
+```{r}
+library("labeling")
+library(ggcyto)
+ggcd4cd8=ggcyto(fcsB,aes(x=CD4,y=CD8))
+ggcd4=ggcyto(fcsB,aes(x=CD4))
+ggcd8=ggcyto(fcsB,aes(x=CD8))
+p1=ggcd4+geom_histogram(bins=60)
+p1b=ggcd8+geom_histogram(bins=60)
+asinhT = arcsinhTransform(a=0,b=1)
+transl = transformList(colnames(fcsB)[-c(1,2,41)], asinhT)
+fcsBT = transform(fcsB, transl)
+p1t=ggcyto(fcsBT,aes(x=CD4))+geom_histogram(bins=90)
+p2t=ggcyto(fcsBT,aes(x=CD4,y=CD8))+geom_density2d(colour="black")
+p3t=ggcyto(fcsBT,aes(x=CD45RA,y=CD20))+geom_density2d(colour="black")
+
+
+```
+
+```{r}
+library("dbscan")
+mc5 = Biobase::exprs(fcsBT)[, c(15,16,19,40,33)]
+res5 = dbscan::dbscan(mc5, eps = 0.65, minPts = 30)
+mc5df = data.frame(mc5, cluster = as.factor(res5$cluster))
+table(mc5df$cluster)
+ggplot(mc5df, aes(x=CD4,    y=CD8,  col=cluster))+geom_density2d()
+ggplot(mc5df, aes(x=CD3all, y=CD20, col=cluster))+geom_density2d()
+```
