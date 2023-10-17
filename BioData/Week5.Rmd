@@ -1,0 +1,71 @@
+---
+title: "Week5"
+author: "Tiabet"
+date: "2023-10-10"
+output: html_document
+---
+
+```{r flags}
+head(flags)
+flags_class <- sapply(flags,class)
+```
+
+## lapply
+l : list
+반환 타입 : list
+반복문을 사용할 필요 없이 dataframe, class 를 파라미터로 넣어주면 한 번에 찾아줌
+
+## sapply
+lapply와 똑같은데 반환 타입이 character임.
+
+## vapply
+사용자의 목적에 맞게 결과를 반환할 수 있음
+
+## tapply
+
+
+```{r ggplot2, r dplyr}
+library(ggplot2)
+library(dplyr)
+coinflips = (runif(10000) > 0.5)
+table(coinflips)
+
+oneFlip = function(fl, mean1 = 1, mean2 = 3, sd1 = 0.5, sd2 = 0.5) {
+  if (fl) {
+   rnorm(1, mean1, sd1)
+  } else {
+   rnorm(1, mean2, sd2)
+  }
+}
+fairmix = vapply(coinflips, oneFlip, numeric(1))
+
+
+ggplot(tibble(value = fairmix), aes(x = value)) +
+     geom_histogram(fill = "purple", binwidth = 0.1)
+```
+
+```{r CONICSmat}
+suva_expr = as.matrix(read.table("Archive/OG_processed_data_portal.txt",sep="\t",header=T,row.names=1,check.names=F))
+suva_expr [which(is.na(suva_expr ))]=0
+dim(suva_expr)
+suva_expr[1:5,1:5]
+patients=unlist(strsplit(colnames(suva_expr),"_",fixed=TRUE))[seq(1,(3*ncol(suva_expr))-1,3)]
+unique(patients)
+
+patients[which(patients=="93")]="MGH93"
+patients[which(patients=="97")]="MGH97"
+
+regions=read.table("Archive/chromosome_arm_positions_grch38.txt",sep="\t",row.names = 1,header = T)
+head(regions,n=5)
+
+
+ensembl = biomaRt::useMart(biomart = "ENSEMBL_MART_ENSEMBL", dataset = "hsapiens_gene_ensembl")
+
+gene_positions <- biomaRt::getBM(attributes = c("ensembl_gene_id",
+            "hgnc_symbol", "chromosome_name", "start_position",
+            "end_position"), filters = "hgnc_symbol", values = rownames(suva_expr),
+            mart = ensembl)
+           
+gene_pos <- gene_positions 
+```
+
