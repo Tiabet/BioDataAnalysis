@@ -4,3 +4,8 @@
 *.csv
 .Rproj.user
 *.txt
+*.RData
+
+BioData/data
+BioData/.RData
+BioData/.Rhistory
