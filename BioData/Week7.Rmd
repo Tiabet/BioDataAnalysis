@@ -1,0 +1,43 @@
+---
+title: "Week7"
+author: "Tiabet"
+date: "2023-10-24"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+t.test는 데이터의 개수에 민감하기 때문에
+데이터를 duplicate한다면 이를 독립하다고 판단하여
+p-value를 굉장히 떨어트리는 효과를 발생시킴.
+따라서 duplicate하지 않게, 독립적이게 유지하는게 중요
+
+```{r}
+library(DESeq2)
+library("airway")
+library(dplyr)
+data("airway")
+
+airway
+
+head(airway@assays@data@listData$counts)
+
+count_matrix <- airway@assays@data@listData$counts
+colnames(count_matrix) <- colnames(airway)
+rownames(count_matrix) <- rownames(airway)
+
+
+airway@colData
+
+aw   = DESeqDataSet(se = airway, design = ~ cell + dex)
+aw   = DESeq(aw)
+
+awde = as.data.frame(results(aw)) %>% dplyr::filter(!is.na(pvalue))
+
+head(awde)
+
+padj_BH = p.adjust(awde$pvalue, method = "BH")
+sum(padj_BH < 0.1)
+```
