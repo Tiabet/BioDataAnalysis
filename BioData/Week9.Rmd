@@ -1,0 +1,97 @@
+---
+title: "Week9"
+author: "Tiabet"
+date: "2023-11-02"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+turtles = read.table("data/PaintedTurtles.txt", header = TRUE)
+turtles[1:4,]
+load("data/athletes.RData")
+athletes[1:3, ]
+dim(athletes)
+```
+
+```{r}
+load("data/Msig3transp.RData")
+round(Msig3transp,2)[1:5, 1:6]
+```
+
+
+```{r}
+data("GlobalPatterns", package = "phyloseq")
+GPOTUs = as.matrix(t(phyloseq::otu_table(GlobalPatterns)))
+GPOTUs[1:4, 6:13]
+```
+
+```{r}
+data("airway", package = "airway")
+assay(airway)[1:3, 1:4]
+metab = t(as.matrix(read.csv("data/metabolites.csv", row.names = 1)))
+metab[1:4, 1:4]
+```
+
+-matches는 안에 들어간 걸 빼고고
+```{r}
+ggpairs(dplyr::select(turtles, -matches("sex")), 
+        axisLabels = "none")
+ggpairs(dplyr::select(athletes,-matches("100")),
+        axisLabels = "none")
+```
+```{r}
+library("pheatmap")
+pheatmap(cor(athletes), cell.width = 10, cell.height = 10)
+```
+
+```{r}
+scaledTurtles = cbind(scale(dplyr::select(turtles, -matches("sex"))), 
+                      dplyr::select(turtles, matches("sex")))
+ggplot(scaledTurtles, aes(x = width, y = height, group = sex)) +
+  geom_point(aes(color = sex)) + coord_fixed()
+```
+
+```{r}
+library("ggplot2")
+athletes_sc = scale(athletes)
+n = nrow(athletes_sc)
+athletes_sc = data.frame(athletes_sc)
+p = ggplot(athletes_sc, aes(x = weight,y = disc)) +
+  geom_point(size = 2, shape = 21)
+p + geom_point(aes(y = rep(0, n)), colour = "red") +
+  geom_segment(aes(xend = weight, yend = rep(0, n)), linetype = "dashed") +
+  coord_fixed()
+reg1 = lm(disc ~ weight, data = athletes_sc)
+a = reg1$coefficients[1] # Intercept
+b = reg1$coefficients[2] # slope
+p + geom_abline(intercept = a, slope = b, col = "blue", lwd = 1.5) +
+    geom_segment(aes(xend = weight, yend = reg1$fitted),
+                 colour = "red", arrow = arrow(length = unit(0.15,"cm"))) +  
+    coord_fixed()
+
+X = cbind(athletes_sc$disc, athletes_sc$weight)
+svda = svd(X)
+pc = X %*% svda$v[, 1] %*% t(svda$v[, 1])
+bp = svda$v[2, 1] / svda$v[1, 1]
+ap = mean(pc[, 2]) - bp * mean(pc[, 1])
+
+p + geom_segment(xend = pc[,1], yend = pc[,2]) + 
+  geom_abline(intercept = ap, slope = bp, col = "purple", lwd = 1.5) + 
+  coord_fixed()
+```
+
+```{r}
+turtles3var = dplyr::select(turtles, -matches("sex"))
+apply(turtles3var, 2, mean)
+apply(turtles3var, 2, var)
+cor(turtles3var)
+pca1 = princomp(scale(turtles3var))
+# or alternatively:
+# pca1 = ade4::dudi.pca(scale(turtles3var), scannf = FALSE)
+fviz_eig(pca1, geom = "bar", width = 0.4)
+```
