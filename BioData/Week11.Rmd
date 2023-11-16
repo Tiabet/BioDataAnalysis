@@ -1,0 +1,132 @@
+---
+title: "Week11"
+author: "Tiabet"
+date: "2023-11-16"
+output: html_document
+---
+
+```{r}
+ekm = read.table("data/ekman.txt", header=TRUE)
+rownames(ekm) = colnames(ekm)
+disekm = 1 - ekm - diag(1, ncol(ekm))
+disekm[1:5, 1:5]
+disekm = as.dist(disekm)
+library("dplyr")
+library("ggplot2")
+plotscree = function(x, m = length(x$eig)) 
+  ggplot(tibble(eig = x$eig[seq_len(m)], k = seq(along = eig)),
+            aes(x = k, y = eig)) +
+      scale_x_discrete("k", limits = as.factor(seq_len(m))) + theme_minimal() +
+      geom_bar(stat="identity", width=0.5, fill="#ffd700", col = "#0057b7")
+
+
+mdsekm = cmdscale(disekm, eig = TRUE)
+plotscree(mdsekm)
+```
+```{r}
+library(ggplot2)
+library("ggrepel")
+dfekm = mdsekm$points[, 1:2] |>
+  `colnames<-`(paste0("MDS", 1:2)) |>
+  as_tibble() |>
+  mutate(
+    name = rownames(ekm),
+    rgb = photobiology::w_length2rgb(as.numeric(sub("w", "", name))))
+ggplot(dfekm, aes(x = MDS1, y = MDS2)) +
+  geom_point(col = dfekm$rgb, size = 4) +
+  geom_text_repel(aes(label = name)) + coord_fixed()
+```
+
+
+```{r}
+library("vegan")
+
+nmds.stress = function(x, sim = 100, kmax = 4) {
+  sapply(seq_len(kmax), function(k)
+    replicate(sim, metaMDS(x, k = k, autotransform = FALSE)$stress))
+}
+stress = nmds.stress(disekm, sim = 100)
+
+dim(stress)
+
+dfstr = reshape2::melt(stress, varnames = c("replicate","dimensions"))
+ggplot(dfstr, aes(y = value, x = dimensions, group = dimensions)) +
+  geom_boxplot()
+
+nmdsk2 = metaMDS(disekm, k = 2, autotransform = FALSE)
+
+stressplot(nmdsk2, pch = 20)
+
+nmdsk2$points[, 1:2] |> 
+  `colnames<-`(paste0("NmMDS", 1:2)) |>
+  as_tibble() |> 
+  bind_cols(dplyr::select(dfekm, rgb, name)) |>
+  ggplot(aes(x = NmMDS1, y = NmMDS2)) +
+    geom_point(col = dfekm$rgb, size = 4) +
+    geom_text_repel(aes(label = name))
+
+```
+
+
+```{r}
+IBDchip = readRDS("data/vsn28Exprd.rds")
+library("ade4")
+library("factoextra")
+library("sva")
+
+assayIBD = IBDchip[-nrow(IBDchip), ]
+day      = factor(IBDchip[nrow(IBDchip), ])
+
+rankthreshPCA = function(x, threshold = 3000) {
+  ranksM = apply(x, 2, rank)
+  ranksM[ranksM < threshold] = threshold
+  ranksM = threshold - ranksM
+  dudi.pca(t(ranksM), scannf = FALSE, nf = 2)
+}
+
+pcaDay12 = rankthreshPCA(assayIBD[, day != 3])
+fviz_eig(pcaDay12, bar_width = 0.6) + ggtitle("")
+
+
+day12 = day[ day!=3 ]
+rtPCA1 = fviz(pcaDay12, element = "ind", axes = c(1, 2), geom = c("point", "text"),
+  habillage = day12, repel = TRUE, palette = "Dark2",
+  addEllipses = TRUE, ellipse.type = "convex") + ggtitle("") +
+  coord_fixed()
+rtPCA1
+```
+```{r}
+library("SummarizedExperiment")
+treatment  = factor(ifelse(grepl("Cntr|^C", colnames(IBDchip)), "CTL", "IBS"))
+sampledata = DataFrame(day = day, treatment = treatment)
+chipse = SummarizedExperiment(assays  = list(abundance = assayIBD),
+                              colData = sampledata)
+
+cooc = read.delim2("data/coccurHIV.txt", header = TRUE, sep = ",")
+cooc[1:4,1:11]
+
+HIVca = dudi.coa(cooc,nf=4,scannf=FALSE)
+fviz_eig(HIVca, geom = "bar", bar_width = 0.6) + ggtitle("")
+
+```
+```{r}
+library("vcd")
+load("data/lakes.RData")
+lakelike[1:3,1:8]
+
+reslake=dudi.coa(lakelike,scannf=FALSE,nf=2)
+round(reslake$eig[1:8]/sum(reslake$eig),2)
+```
+
+
+```{r}
+library("genefilter")
+load("data/microbe.rda")
+metab = read.csv("data/metabolites.csv", row.names = 1) |> as.matrix()
+library("phyloseq")
+metab   = metab[rowSums(metab == 0) <= 3, ]
+microbe = prune_taxa(taxa_sums(microbe) > 4, microbe)
+microbe = filter_taxa(microbe, filterfun(kOverA(3, 2)), TRUE)
+metab   = log(1 + metab, base = 10)
+X       = log(1 + as.matrix(otu_table(microbe)), base = 10)
+```
