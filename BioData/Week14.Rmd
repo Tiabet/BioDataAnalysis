@@ -1,0 +1,195 @@
+---
+title: "Week14"
+author: "Tiabet"
+date: "2023-12-07"
+output: html_document
+---
+
+```{r}
+data("diabetes", package = "rrcov")
+head(diabetes)
+
+library("reshape2")
+library("ggplot2")
+ggplot(melt(diabetes, id.vars = "group"), aes(x = value, col = group)) +
+ geom_density() + facet_wrap( ~variable, ncol = 1, scales = "free") +
+ theme(legend.position = "bottom")
+
+```
+
+```{r}
+ggdb = ggplot(mapping = aes(x = sspg, y = glucose)) +
+  geom_point(aes(colour = group), data = diabetes)
+
+ggdb
+
+library("MASS")
+diabetes_lda = lda(group ~ sspg + glucose, data = diabetes)
+diabetes_lda
+
+ghat = predict(diabetes_lda)$class
+table(ghat, diabetes$group)
+
+mean(ghat != diabetes$group)
+
+make1Dgrid = function(x) {
+  rg = grDevices::extendrange(x)
+  seq(from = rg[1], to = rg[2], length.out = 100)
+}
+
+diabetes_grid = with(diabetes,
+  expand.grid(sspg = make1Dgrid(sspg),
+              glucose = make1Dgrid(glucose)))
+
+
+diabetes_grid$ghat =
+  predict(diabetes_lda, newdata = diabetes_grid)$class
+
+centers = diabetes_lda$means
+library(tibble)
+unitcircle = exp(1i * seq(0, 2*pi, length.out = 360)) |>
+          (\(z) cbind(Re(z), Im(z)))() 
+ellipse = unitcircle %*% solve(diabetes_lda$scaling) |> as_tibble()
+library("dplyr")
+ellipses = lapply(rownames(centers), function(gr) {
+  mutate(ellipse,
+     sspg    = sspg    + centers[gr, "sspg"],
+     glucose = glucose + centers[gr, "glucose"],
+     group   = gr)
+}) |> bind_rows()
+ggdb + geom_raster(aes(fill = ghat),
+            data = diabetes_grid, alpha = 0.25, interpolate = TRUE) +
+    geom_point(data = as_tibble(centers), pch = "+", size = 8) +
+    geom_path(aes(colour = group), data = ellipses) +
+    scale_x_continuous(expand = c(0, 0)) +
+    scale_y_continuous(expand = c(0, 0))
+
+diabetes_up = lda(group ~ sspg + glucose, data = diabetes,
+  prior = (\(n) rep(1/n, n)) (nlevels(diabetes$group)))
+
+diabetes_grid$ghat_up =
+  predict(diabetes_up, newdata = diabetes_grid)$class
+
+stopifnot(all.equal(diabetes_up$means, diabetes_lda$means))
+
+ellipse_up  = unitcircle %*% solve(diabetes_up$scaling) |> as_tibble()
+ellipses_up = lapply(rownames(centers), function(gr) {
+  mutate(ellipse_up,
+     sspg    = sspg    + centers[gr, "sspg"],
+     glucose = glucose + centers[gr, "glucose"],
+     group   = gr)
+}) |> bind_rows()
+
+ggdb + geom_raster(aes(fill = ghat_up),
+            data = diabetes_grid, alpha = 0.4, interpolate = TRUE) +
+    geom_point(data = data.frame(centers), pch = "+", size = 8) +
+    geom_path(aes(colour = group), data = ellipses_up) +
+    scale_x_continuous(expand = c(0, 0)) +
+    scale_y_continuous(expand = c(0, 0))
+
+diabetes_lda5 = lda(group ~ rw + fpg + glucose + sspg + insulin, data = diabetes)
+diabetes_lda5
+
+ghat5 = predict(diabetes_lda5)$class
+table(ghat5, diabetes$group)
+mean(ghat5 != diabetes$group)
+library("Hiiragi2013")
+data("x")
+probes = c("1426642_at", "1418765_at", "1418864_at", "1416564_at")
+embryoCells = t(Biobase::exprs(x)[probes, ]) |> as_tibble() |>
+  mutate(Embryonic.day = x$Embryonic.day) |>
+  dplyr::filter(x$genotype == "WT")
+
+annotation(x)
+data("x")
+probes = c("1426642_at", "1418765_at", "1418864_at", "1416564_at")
+embryoCells = t(Biobase::exprs(x)[probes, ]) |> as_tibble() |>
+  mutate(Embryonic.day = x$Embryonic.day) |>
+  dplyr::filter(x$genotype == "WT")
+
+```
+
+
+```{r}
+p = 2:21
+n = 20
+
+mcl = lapply(p, function(pp) {
+  replicate(100, {
+    xmat = matrix(rnorm(n * pp), nrow = n)
+    resp = sample(c("apple", "orange"), n, replace = TRUE)
+    fit  = lda(xmat, resp)
+    pred = predict(fit)$class
+    mean(pred != resp)
+  }) |> mean() |> (\(x) tibble(mcl = x, p = pp))()
+}) |> bind_rows()
+
+ggplot(mcl, aes(x = p, y = mcl)) + geom_line() + geom_point() +
+  ylab("Misclassification rate")
+
+estimate_mcl_loocv = function(x, resp) {
+  vapply(seq_len(nrow(x)), function(i) {
+    fit  = lda(x[-i, ], resp[-i])
+    ptrn = predict(fit, newdata = x[-i,, drop = FALSE])$class
+    ptst = predict(fit, newdata = x[ i,, drop = FALSE])$class
+    c(train = mean(ptrn != resp[-i]), test = (ptst != resp[i]))
+  }, FUN.VALUE = numeric(2)) |> rowMeans() |> t() |> as_tibble()
+}
+
+xmat = matrix(rnorm(n * last(p)), nrow = n)
+resp = sample(c("apple", "orange"), n, replace = TRUE)
+
+mcl = lapply(p, function(k) {
+  estimate_mcl_loocv(xmat[, 1:k], resp)
+}) |> bind_rows() |> data.frame(p) |> melt(id.var = "p")
+
+ggplot(mcl, aes(x = p, y = value, col = variable)) + geom_line() +
+  geom_point() + ylab("Misclassification rate")
+
+p   = 2:20
+mcl = replicate(100, {
+  xmat = matrix(rnorm(n * last(p)), nrow = n)
+  resp = sample(c("apple", "orange"), n, replace = TRUE)
+  xmat[, 1:6] = xmat[, 1:6] + as.integer(factor(resp))
+
+  lapply(p, function(k) {
+    estimate_mcl_loocv(xmat[, 1:k], resp)
+  }) |> bind_rows() |> cbind(p = p) |> melt(id.var = "p")
+}, simplify = FALSE) |> bind_rows()
+
+mcl = group_by(mcl, p, variable) |> summarise(value = mean(value))
+ggplot(mcl, aes(x = p, y = value, col = variable)) + geom_line() +
+   geom_point() + ylab("Misclassification rate")
+```
+
+```{r}
+library("ExperimentHub")
+
+eh = ExperimentHub()
+zeller = eh[["EH361"]]
+```
+```{r}
+library("caret")
+caretMethods = names(getModelInfo())
+head(caretMethods, 8)
+
+library("mouse4302.db")
+anno = AnnotationDbi::select(mouse4302.db, keys = probes,
+         columns = c("SYMBOL", "GENENAME"))
+
+
+trnCtrl = trainControl(
+  method = "repeatedcv",
+  repeats = 3,
+  classProbs = TRUE)
+tuneGrid = expand.grid(
+  size = c(2, 4, 8),
+  decay = c(0, 1e-2, 1e-1))
+nnfit = train(
+  Embryonic.day ~ Fn1 + Timd2 + Gata4 + Sox7,
+  data = embryoCells,
+  method = "nnet",
+  tuneGrid  = tuneGrid,
+  trControl = trnCtrl,
+  metric = "Accuracy")
+```
